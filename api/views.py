@@ -16,6 +16,10 @@ import datetime
 from .models import EventModel
 from .serializers import EventSerializer
 from rest_framework.response import Response
+import datetime
+from googleapiclient.discovery import build
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
 SCOPES = ['https://www.googleapis.com/auth/calendar']
 
 
@@ -31,6 +35,23 @@ def a_view(request):
         request.session['endurl'] = _build_full_view_url(request, 'a_view')
         return HttpResponseRedirect('authorize')
 
+    credentials = Credentials(**request.session['credentials'])
+    service = build('calendar', 'v3', credentials=credentials)
+
+    # Call the Calendar API
+    now = datetime.datetime.utcnow().isoformat() + 'Z'  # 'Z' indicates UTC time
+    print('Getting the upcoming 10 events')
+    events_result = service.events().list(calendarId='primary', timeMin=now,
+                                          maxResults=10, singleEvents=True,
+                                          orderBy='startTime').execute()
+    events = events_result.get('items', [])
+
+    if not events:
+        print('No upcoming events found.')
+    for event in events:
+        start = event['start'].get('dateTime', event['start'].get('date'))
+        print(start, event['summary'])
+
     return Response({"message": "Hello, world!"})
 
 
@@ -44,7 +65,6 @@ def oauth2callback(request):
     flow.fetch_token(authorization_response=authorization_response)
     credentials = flow.credentials
     request.session['credentials'] = _credentials_to_dict(credentials)
-    print("This is the request session ... ", request.session)
     return HttpResponseRedirect(request.session['endurl'])
 
 
